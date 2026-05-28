@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2026 자료구조 과제2 - OOP 다형성 시각화 & 레이드 시뮬레이터</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts (DungGeunMo) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_six@1.2/DungGeunMo.css">
+  <style>
+    body {
+      font-family: 'DungGeunMo', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #1f2937;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #4b5563;
+      border-radius: 3px;
+    }
+    .pixel-border {
+      box-shadow: 
+        0px -4px 0px 0px #000,
+        0px 4px 0px 0px #000,
+        -4px 0px 0px 0px #000,
+        4px 0px 0px 0px #000;
+    }
+    .pixel-border-sm {
+      box-shadow: 
+        0px -2px 0px 0px #000,
+        0px 2px 0px 0px #000,
+        -2px 0px 0px 0px #000,
+        2px 0px 0px 0px #000;
+    }
+    @keyframes bounce-subtle {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    .bounce-animation {
+      animation: bounce-subtle 2s infinite ease-in-out;
+    }
+    @keyframes hit-shake {
+      0% { transform: translate(1px, 1px) rotate(0deg); }
+      10% { transform: translate(-1px, -2px) rotate(-1deg); }
+      20% { transform: translate(-3px, 0px) rotate(1deg); }
+      30% { transform: translate(0px, 2px) rotate(0deg); }
+      40% { transform: translate(1px, -1px) rotate(1deg); }
+      50% { transform: translate(-1px, 2px) rotate(-1deg); }
+      60% { transform: translate(-3px, 1px) rotate(0deg); }
+      70% { transform: translate(2px, 1px) rotate(-1deg); }
+      80% { transform: translate(-1px, -1px) rotate(1deg); }
+      90% { transform: translate(2px, 2px) rotate(0deg); }
+      100% { transform: translate(1px, -2px) rotate(-1deg); }
+    }
+    .shake {
+      animation: hit-shake 0.3s;
+    }
+    @keyframes flash-red {
+      0%, 100% { background-color: transparent; }
+      50% { background-color: rgba(239, 68, 68, 0.4); }
+    }
+    .hit-flash {
+      animation: flash-red 0.4s ease-out;
+    }
+  </style>
+  <!-- React CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel CDN for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <div id="root"></div>
+
+  <!-- React App Code -->
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // 보스 데이터 정의 (밸런스 조정 및 획득 경험치 하향 조정)
+    const BOSS_DATA = [
+      {
+        id: "zakum",
+        name: "자쿰 (Zakum)",
+        maxHp: 400, 
+        baseDamage: 25,
+        expReward: 50, // 기존 120 -> 50 으로 조정
+        description: "고대 나무의 영혼이 깃든 석상. 강력한 물리 공격과 매 3턴마다 '팔 휘두르기' 광역 격돌을 시전합니다.",
+        patterns: [
+          { name: "일반 불기둥 강타", effect: "살아있는 랜덤 대상 1명에게 40 물리 데미지" },
+          { name: "대지 진동 무차별 강격", effect: "모든 캐릭터에게 고정 마법 피해 15" },
+          { name: "팔 휘두르기 (전체 파괴)", effect: "생존한 영웅 전원에게 물리 피해 40" }
+        ],
+        svg: (
+          <svg viewBox="0 0 100 100" class="w-24 h-24 mx-auto drop-shadow-[0_0_15px_rgba(239,68,68,0.6)]">
+            <rect x="30" y="55" width="40" height="35" fill="#4B5563" />
+            <rect x="25" y="25" width="50" height="30" fill="#374151" />
+            <rect x="35" y="35" width="8" height="6" fill="#EF4444" />
+            <rect x="57" y="35" width="8" height="6" fill="#EF4444" />
+            <rect x="40" y="15" width="20" height="10" fill="#F59E0B" />
+            <rect x="45" y="10" width="10" height="5" fill="#EF4444" />
+            <path d="M10,35 L25,45 L10,50 L25,55 L10,65 L25,65 M90,35 L75,45 M90,50 L75,55 M90,65 L75,65" stroke="#4B5563" strokeWidth="6" strokeLinecap="round" />
+            <rect x="5" y="30" width="8" height="8" fill="#1F2937" />
+            <rect x="5" y="45" width="8" height="8" fill="#1F2937" />
+            <rect x="5" y="60" width="8" height="8" fill="#1F2937" />
+            <rect x="87" y="30" width="8" height="8" fill="#1F2937" />
+            <rect x="87" y="45" width="8" height="8" fill="#1F2937" />
+            <rect x="87" y="60" width="8" height="8" fill="#1F2937" />
+          </svg>
+        )
+      },
+      {
+        id: "horntail",
+        name: "혼테일 (Horntail)",
+        maxHp: 800,
+        baseDamage: 40,
+        expReward: 100, // 기존 300 -> 100 으로 조정
+        description: "생명의 동굴 안쪽의 거대 세 머리 용. 매 3턴마다 강력한 속성 폭격을 펼쳐 영웅들을 위협합니다.",
+        patterns: [
+          { name: "삼두룡의 유뢰 폭격", effect: "아군 중 무작위 2명에게 번개 30 데미지" },
+          { name: "꼬리 내려치기", effect: "모든 캐릭터에게 물리 피해 25" },
+          { name: "삼두룡의 파괴 숨결", effect: "전원 관통 화염 50 데미지" }
+        ],
+        svg: (
+          <svg viewBox="0 0 100 100" class="w-28 h-28 mx-auto drop-shadow-[0_0_20px_rgba(16,185,129,0.5)]">
+            <rect x="42" y="15" width="16" height="18" fill="#065F46" />
+            <rect x="46" y="23" width="4" height="4" fill="#FBBF24" />
+            <rect x="22" y="25" width="16" height="16" fill="#047857" />
+            <rect x="25" y="30" width="4" height="4" fill="#FBBF24" />
+            <circle cx="50" cy="50" r="5" fill="#EF4444" />
+            <rect x="62" y="25" width="16" height="16" fill="#047857" />
+            <rect x="71" y="30" width="4" height="4" fill="#FBBF24" />
+            <rect x="30" y="45" width="40" height="40" fill="#064E3B" />
+            <path d="M15,50 L5,35 L20,40 Z" fill="#047857" />
+            <path d="M85,50 L95,35 L80,40 Z" fill="#047857" />
+            <rect x="45" y="55" width="10" height="25" fill="#EF4444" />
+          </svg>
+        )
+      },
+      {
+        id: "pinkbean",
+        name: "핑크빈 (Pinkbean)",
+        maxHp: 1800,
+        baseDamage: 55,
+        expReward: 200, // 기존 800 -> 200 으로 조정
+        description: "이계의 파괴신. 매 3턴마다 무적 배리어를 소환하여 자신을 철저히 무장합니다.",
+        patterns: [
+          { name: "미니빈 소환 어택", effect: "살아있는 무작위 아군 1명에게 45 물리 타격" },
+          { name: "확성기 음파진동", effect: "파티 전체에 마법 울림 25 피해" },
+          { name: "시간의 무적 배리어", effect: "핑크빈 무적 상태 진입 [오직 궁수 스킬 또는 은신한 암살자만 격동 가능]" }
+        ],
+        svg: (
+          <svg viewBox="0 0 100 100" class="w-24 h-24 mx-auto drop-shadow-[0_0_20px_rgba(244,63,94,0.6)]">
+            <circle cx="50" cy="55" r="28" fill="#F43F5E" />
+            <circle cx="50" cy="62" r="16" fill="#FFE4E6" />
+            <rect x="18" y="45" width="8" height="16" rx="4" fill="#FBBF24" />
+            <rect x="74" y="45" width="8" height="16" rx="4" fill="#FBBF24" />
+            <path d="M22,45 C22,25 78,25 78,45" stroke="#FBBF24" strokeWidth="4" fill="none" />
+            <polygon points="25,35 15,20 30,28" fill="#FDA4AF" />
+            <polygon points="75,35 85,20 70,28" fill="#FDA4AF" />
+            <rect x="42" y="48" width="4" height="4" fill="#000" />
+            <rect x="54" y="48" width="4" height="4" fill="#000" />
+            <polygon points="49,53 51,53 50,55" fill="#EF4444" />
+            <path d="M47,58 Q50,61 53,58" stroke="#000" strokeWidth="2" fill="none" />
+          </svg>
+        )
+      }
+    ];
+
+    const INITIAL_PARTY = [
+      {
+        id: "warrior_dodo",
+        classType: "Warrior",
+        name: "도도",
+        level: 1,
+        hp: 200,
+        maxHp: 200,
+        weapon: "엑스칼리버",
+        baseDmg: 40,
+        critChance: 0, // 기본 공격에 크리티컬 확률 완전 제거 (0%)
+        defenseActive: false,
+        color: "border-red-500 text-red-400 bg-red-950/40",
+        icon: "⚔️",
+        atkDesc: "무기로 보스에게 고정 대미지를 안정적으로 입힙니다.",
+        skillName: "방패 붕괴 격돌",
+        skillDesc: "보스의 현재 체력(Current HP)의 15%만큼 강력한 비율 비례 피해를 즉시 입힙니다. (보스의 체력이 가득 차 있을 때 초강력 위력 발휘)"
+      },
+      {
+        id: "mage_deliki",
+        classType: "Mage",
+        name: "델리키",
+        level: 1,
+        hp: 100,
+        maxHp: 100,
+        spell: "메테오",
+        baseDmg: 60,
+        critChance: 0, // 기본 공격에 크리티컬 확률 완전 제거 (0%)
+        defenseActive: false,
+        shieldAmount: 0,
+        color: "border-purple-500 text-purple-400 bg-purple-950/40",
+        icon: "🔮",
+        atkDesc: "가장 높은 기본 주문 공격력과 넓은 피해 진폭을 뿜어냅니다.",
+        skillName: "마나 에너지 배리어",
+        skillDesc: "살아있는 전원에게 보호 장막을 씌워 다음 보스 대미지를 각각 30만큼 온전히 방어막으로 감쇄시킵니다."
+      },
+      {
+        id: "archer_bau",
+        classType: "Archer",
+        name: "바우",
+        level: 1,
+        hp: 150,
+        maxHp: 150,
+        bow: "간디바",
+        baseDmg: 35,
+        critChance: 80, // 기본 공격이 80% 확률로 크리티컬 적용
+        defenseActive: false,
+        color: "border-green-500 text-green-400 bg-green-950/40",
+        icon: "🏹",
+        atkDesc: "80% 확률로 2.0배 위력의 안정적인 속사 저격을 가합니다.",
+        skillName: "집중 일점 사격",
+        skillDesc: "50% 확률로 2.6배의 고위력 치명타 일점 사격을 시전합니다. [핑크빈 무적 관통 가능]"
+      },
+      {
+        id: "assassin_aruru",
+        classType: "Assassin",
+        name: "아루루",
+        level: 1,
+        hp: 120,
+        maxHp: 120,
+        daggers: 3,
+        baseDmg: 25,
+        critChance: 0, // 기본 상태에서 크리티컬 확률 완전 제거 (0%)
+        defenseActive: false,
+        stealthCharged: false,
+        color: "border-yellow-500 text-yellow-400 bg-yellow-950/40",
+        icon: "🗡️",
+        atkDesc: "가지고 있는 단검 수에 비례하는 연타 공격을 적용합니다.",
+        skillName: "그림자 보법 & 급습",
+        skillDesc: "은신에 돌입하여 다음 보스 공격을 100% 흘리며, 은신 해제 공격 시 위력이 3배로 증가합니다. [핑크빈 무적 관통 가능]"
+      }
+    ];
+
+    function App() {
+      const [loopCount, setLoopCount] = useState(1); // 무한 반복 회차 시스템 추가 (New Game Plus)
+      const [currentBossIndex, setCurrentBossIndex] = useState(0);
+      const [bossHp, setBossHp] = useState(BOSS_DATA[0].maxHp);
+      const [turnCounter, setTurnCounter] = useState(1);
+      const [globalExp, setGlobalExp] = useState(0);
+      const [logs, setLogs] = useState([
+        "⚔️ 자쿰 레이드가 시작되었습니다!",
+        "💡 캐릭터의 [공격] 및 [스킬] 버튼은 직업 고유의 다형성 메커니즘을 동적으로 호출합니다!"
+      ]);
+      const [bossShake, setBossShake] = useState(false);
+      const [partyHitFlash, setPartyHitFlash] = useState(false);
+      const [victory, setVictory] = useState(false);
+      const [gameOver, setGameOver] = useState(false);
+
+      // 실시간 로그 기록 함수 정의
+      const addLog = (msg) => {
+        setLogs(prev => [...prev, msg]);
+      };
+
+      // 회차 기반 보스 스케일러 연산 (회차당 체력 50%, 대미지 30% 증가)
+      const getBossMaxHp = (bossIndex, loop) => {
+        return Math.floor(BOSS_DATA[bossIndex].maxHp * (1 + (loop - 1) * 0.50));
+      };
+      
+      const getBossDamage = (bossIndex, loop) => {
+        return Math.floor(BOSS_DATA[bossIndex].baseDamage * (1 + (loop - 1) * 0.30));
+      };
+
+      // 초기 기동 시 보스 체력 보정
+      useEffect(() => {
+        setBossHp(getBossMaxHp(0, loopCount));
+      }, []);
+
+      const [selectedConcept, setSelectedConcept] = useState("CharacterADT");
+      const [activeConceptInfo, setActiveConceptInfo] = useState({
+        title: "CharacterADT (인터페이스 추상 클래스)",
+        desc: "모든 캐릭터의 설계도가 되는 Abstract Base Class(ADT)입니다. 파이썬의 abc 모듈을 활용하여 자식 클래스가 반드시 구현해야 할 인터페이스(@abstractmethod)인 name, hp, attack(), move()를 강제 규정합니다.",
+        code: `from abc import ABC, abstractmethod
+
+class CharacterADT(ABC):
+    @property
+    @abstractmethod
+    def name(self): pass
+
+    @property
+    @abstractmethod
+    def hp(self): pass
+
+    @abstractmethod
+    def attack(self): pass
+
+    @abstractmethod
+    def move(self): pass`
+      });
+
+      const [party, setParty] = useState(JSON.parse(JSON.stringify(INITIAL_PARTY)));
+      const logEndRef = useRef(null);
+
+      useEffect(() => {
+        logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, [logs]);
+
+      // 파티 사망 감지
+      useEffect(() => {
+        const allDead = party.every(hero => hero.hp <= 0);
+        if (allDead && !gameOver && !victory) {
+          setGameOver(true);
+          addLog("💀 [전멸] 파티원들이 모두 쓰러졌습니다... 보스 공략에 실패했습니다.");
+        }
+      }, [party]);
+
+      const activeBoss = BOSS_DATA[currentBossIndex];
+
+      const handleConceptSelect = (concept) => {
+        setSelectedConcept(concept);
+        let info = {};
+        if (concept === "CharacterADT") {
+          info = {
+            title: "CharacterADT (인터페이스 추상 클래스)",
+            desc: "추상화(Abstraction) 단계입니다. 파이썬의 abc.ABC를 상속받아 모든 플레이어블 캐릭터가 가져야 할 필수 속성(name, hp)과 추상 메서드(attack, move)를 명세서 형태로 작성한 설계 최상위 노드입니다.",
+            code: `class CharacterADT(ABC):
+    @property
+    @abstractmethod
+    def name(self): pass
+
+    @property
+    @abstractmethod
+    def hp(self): pass
+
+    @abstractmethod
+    def attack(self): pass
+
+    @abstractmethod
+    def move(self): pass # 웹에선 스킬 다형성으로 진화!`
+          };
+        } else if (concept === "GameCharacter") {
+          info = {
+            title: "GameCharacter (기본 부모 클래스)",
+            desc: "캡슐화(Encapsulation) 단계입니다. 캐릭터 이름(_name)과 체력(__hp, private)을 정의하고 캡슐화된 속성에 접근하도록 @property 게터를 구성했습니다.",
+            code: `class GameCharacter(CharacterADT):
+    def __init__(self, name, hp):
+        self._name = name
+        self.__hp = hp # 프라이빗 변수 캡슐화!
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def hp(self):
+        return self.__hp
+
+    def cast_skill(self):
+        print(f"[{self.name}]이(가) 기본 클래스 스킬을 준비합니다.")`
+          };
+        } else if (concept === "Warrior") {
+          info = {
+            title: "Warrior (전사 자식 클래스)",
+            desc: "상속과 다형성 단계입니다. attack() 시 고정 피해(40 + 레벨 비례)를 가하고, 스킬 오버라이딩을 통해 보스의 현재 체력(Current HP)의 15% 비율 관통 피해를 입히는 유연한 다형성을 보여줍니다.",
+            code: `class Warrior(GameCharacter):
+    def attack(self):
+        return 40 + (self.level * 5)
+
+    def cast_skill(self, boss):
+        # 다형성 스킬 오버라이딩: 보스 현재 체력의 15% 비례 데미지 격돌!
+        damage = int(boss.hp * 0.15)
+        return damage`
+          };
+        } else if (concept === "Mage") {
+          info = {
+            title: "Mage (마법사 자식 클래스)",
+            desc: "주문 변동 데미지를 가하며, 스킬 오버라이딩을 사용해 아군 전체에 각각 최대 30 대미지를 감쇄하는 마나 실드 방어 장막을 생성합니다.",
+            code: `class Mage(GameCharacter):
+    def attack(self):
+        return 60 + (self.level * 8)
+
+    def cast_skill(self):
+        # 다형성 스킬 오버라이딩: 아군 전체 30 대미지 경감 보호막 활성화
+        self.apply_global_mana_shield()`
+          };
+        } else if (concept === "Archer") {
+          info = {
+            title: "Archer (궁수 자식 클래스)",
+            desc: "원거리 딜러입니다. 신속한 사격 평타(치명타율 80%, 2.0배 증폭)와 고유 사격 스킬(치명타율 50%, 2.6배 증폭)의 절묘한 다형성 조합으로 핑크빈의 무적 상태를 관통해 공격합니다.",
+            code: `class Archer(GameCharacter):
+    def attack(self):
+        // 80% 고확률로 안정적인 2.0배 치명타 평타 딜링
+        is_crit = random() < 0.8
+        return (35 + self.level * 4) * (2.0 if is_crit else 1.0)
+
+    def cast_skill(self):
+        // 50% 확률로 강력한 2.6배 대미지 한방 격발 시전
+        is_crit = random() < 0.5
+        return (35 + self.level * 4) * (2.6 if is_crit else 1.0)`
+          };
+        } else if (concept === "Assassin") {
+          info = {
+            title: "Assassin (암살자 자식 클래스)",
+            desc: "그림자 은신 상태에 돌입해 보스 반격을 완전 무마하며, 은신이 걸려있을 때의 첫 일반 공격 데미지를 3배로 대폭 상향시킵니다.",
+            code: `class Assassin(GameCharacter):
+    def attack(self):
+        # 다형성 공격 연산: 은신 상태에서 습격 시 3배 데미지 배율 적용!
+        multiplier = 3.0 if self.stealth_active else 1.0
+        return int((25 * self.dagger_count) * multiplier)`
+          };
+        }
+        setActiveConceptInfo(info);
+      };
+
+      // 1. 공격 다형성 시동 (즉각 반응)
+      const handleAttack = (charId) => {
+        if (victory || gameOver || bossHp <= 0) return;
+
+        const actor = party.find(c => c.id === charId);
+        if (actor.hp <= 0) {
+          addLog(`❌ [${actor.name}]은(는) 기절하여 행동할 수 없습니다.`);
+          return;
+        }
+
+        let finalDmg = actor.baseDmg;
+        let isCrit = false;
+
+        // 은신 기습 보너스 (3배 적용 및 확정 크리티컬 발동)
+        if (actor.classType === "Assassin" && actor.stealthCharged) {
+          isCrit = true;
+          finalDmg = (actor.baseDmg * actor.daggers) * 3;
+          addLog(`👥 [그림자 습격] 안개 속에서 불쑥 나타난 [암살자 ${actor.name}]의 초강력 급습! (3배 데미지 적용: ${finalDmg} 데미지!)`);
+        } else {
+          if (actor.classType === "Warrior") {
+            finalDmg = actor.baseDmg;
+          } else if (actor.classType === "Mage") {
+            finalDmg = actor.baseDmg + Math.floor(Math.random() * 15);
+          } else if (actor.classType === "Archer") {
+            finalDmg = actor.baseDmg;
+          } else if (actor.classType === "Assassin") {
+            finalDmg = actor.baseDmg * actor.daggers;
+          }
+
+          // 피드백 반영: 전사, 마법사, 암살자(은신 미작동)는 일반 공격 시 절대로 크리티컬이 발동하지 않도록 차단
+          // 즉, 오직 궁수(Archer) 클래스만 기본 공격 시 80% 확률로 크리티컬이 적용됩니다.
+          if (actor.classType === "Archer") {
+            const roll = Math.random() * 100;
+            if (roll < actor.critChance) {
+              isCrit = true;
+              finalDmg = Math.floor(finalDmg * 2.0); // 궁수 크리 배율 2.0배
+            }
+          }
+        }
+
+        // 핑크빈 무적 배리어 정밀 감지 (매 3턴 무조건 반복 가동)
+        const isPinkbeanShieldActive = activeBoss.id === "pinkbean" && (turnCounter % 3 === 0);
+        if (isPinkbeanShieldActive) {
+          // 궁수(Archer)의 기본 공격은 핑크빈 무적을 관통할 수 없음. 오직 은신 급습 암살자만 관통
+          if (!(actor.classType === "Assassin" && actor.stealthCharged)) {
+            addLog(`🛡️ 핑크빈의 시간 배리어! [${actor.name}]의 일반 공격이 반사되었습니다. (피해 0)`);
+            finalDmg = 0;
+          } else {
+            addLog(`🎯 [공략!] [${actor.name}]의 무자비한 은신 관통 암습이 핑크빈의 배리어를 무너트리고 적중했습니다!`);
+          }
+        }
+
+        let dmgText = `${finalDmg} 데미지`;
+        if (isCrit && finalDmg > 0) {
+          dmgText = `🔥 CRITICAL! 🔥 ${finalDmg} 데미지`;
+        }
+
+        const nextBossHp = Math.max(0, bossHp - finalDmg);
+        setBossHp(nextBossHp);
+
+        if (finalDmg > 0) {
+          setBossShake(true);
+          setTimeout(() => setBossShake(false), 300);
+        }
+
+        let actionMsg = "";
+        if (actor.classType === "Warrior") {
+          actionMsg = `[전사 ${actor.name}]이(가) 무기 『${actor.weapon}』로 대지 가르기를 시전하여 ${dmgText}를 입혔습니다!`;
+        } else if (actor.classType === "Mage") {
+          actionMsg = `[마법사 ${actor.name}]이(가) 주문 『${actor.spell}』을 외워 마나 운석으로 ${dmgText}를 입혔습니다!`;
+        } else if (actor.classType === "Archer") {
+          actionMsg = `[궁수 ${actor.name}]이(가) 『${actor.bow}』으로 약점을 꿰뚫어 ${dmgText}를 입혔습니다!`;
+        } else if (actor.classType === "Assassin") {
+          actionMsg = `[암살자 ${actor.name}]이(가) ${actor.daggers}자루 of 단검 투척으로 ${dmgText}를 입혔습니다!`;
+        }
+        addLog(actionMsg);
+
+        // 은신 회피 및 3배 대미지 버프(stealthCharged) 소모
+        setParty(prev => prev.map(c => {
+          if (c.id === charId) {
+            return { ...c, defenseActive: false, stealthCharged: false };
+          }
+          return c;
+        }));
+
+        if (nextBossHp <= 0) {
+          handleBossDefeat();
+        } else {
+          // 즉각 800ms 뒤 보스 공격 진행
+          progressTurn();
+        }
+      };
+
+      // 2. 스킬 다형성 시동 (즉각 반응 및 직업 특수 스탯 전개)
+      const handleSkill = (charId) => {
+        if (victory || gameOver || bossHp <= 0) return;
+
+        const actor = party.find(c => c.id === charId);
+        if (actor.hp <= 0) {
+          addLog(`❌ [${actor.name}]은(는) 기절하여 스킬을 시전할 수 없습니다.`);
+          return;
+        }
+
+        let skillMsg = "";
+        let finalDmg = 0;
+        let isCrit = false;
+
+        // 직업별 오버라이딩된 스킬 메커니즘 연산
+        if (actor.classType === "Warrior") {
+          // 보스의 현재 체력(bossHp)의 15%만큼 비례 피해 연산 적용 (최소 1 데미지 보장)
+          finalDmg = Math.max(1, Math.floor(bossHp * 0.15));
+          skillMsg = `💥 [전사 고유스킬 - ${actor.skillName}] 도도가 거대한 방패로 보스를 내리쳐 보스 현재 체력의 15%에 달하는 비율 고정 피해 [${finalDmg} 데미지]를 즉시 가했습니다!`;
+        } else if (actor.classType === "Mage") {
+          // 아군 전체 보호막 생성
+          skillMsg = `🔮 [마법사 고유스킬 - ${actor.skillName}] 델리키가 강력한 비전 실드를 가동시켰습니다. 아군 전체에게 가해지는 다음 타격을 각각 30만큼 경감시킵니다!`;
+        } else if (actor.classType === "Archer") {
+          // 50% 확률로 2.6배 저격 치명타 공격
+          const roll = Math.random() < 0.5;
+          if (roll) {
+            isCrit = true;
+            finalDmg = Math.floor(actor.baseDmg * 2.6);
+            skillMsg = `🏹 [궁수 고유스킬 - ${actor.skillName}] 바우가 강력한 일점 저격 사격을 가했습니다! 🔥 치명타 폭발! [${finalDmg} 데미지]`;
+          } else {
+            finalDmg = actor.baseDmg;
+            skillMsg = `🏹 [궁수 고유스킬 - ${actor.skillName}] 바우의 조준 일점 격발이 빗나갔습니다. 일반 피해 [${finalDmg} 데미지]`;
+          }
+        } else if (actor.classType === "Assassin") {
+          // 은신 상태 부여 및 급습 3배 버프 가동!
+          skillMsg = `👤 [암살자 고유스킬 - ${actor.skillName}] 아루루가 안개 속으로 모습을 감췄습니다. 보스의 다음 공격을 무조건 회피하며, 다음 '공격' 시 위력이 무려 3배로 증가합니다!`;
+        }
+
+        // 핑크빈 무적 배리어 정밀 감지 (스킬 사용 시에는 궁수의 관통 허용)
+        const isPinkbeanShieldActive = activeBoss.id === "pinkbean" && (turnCounter % 3 === 0);
+        if (isPinkbeanShieldActive && finalDmg > 0) {
+          // 궁수의 스킬 공격 또는 암살자의 급습 상태만 배리어를 무시할 수 있음
+          if (actor.classType !== "Archer" && !(actor.classType === "Assassin" && actor.stealthCharged)) {
+            addLog(`🛡️ 핑크빈의 시간 배리어! [${actor.name}]의 스킬 공격이 반사되었습니다. (피해 0)`);
+            finalDmg = 0;
+          } else {
+            addLog(`🎯 [공략!] [${actor.name}]의 정밀 원거리/은신 관통 스킬이 핑크빈의 배리어를 뚫고 명중했습니다!`);
+          }
+        }
+
+        if (skillMsg) {
+          addLog(skillMsg);
+        }
+
+        // 보스 대미지 동시 반영
+        const nextBossHp = Math.max(0, bossHp - finalDmg);
+        if (finalDmg > 0) {
+          setBossHp(nextBossHp);
+          setBossShake(true);
+          setTimeout(() => setBossShake(false), 300);
+        }
+
+        // 파티원 개별 상태 변경 적용
+        setParty(prev => prev.map(c => {
+          if (c.id === charId) {
+            if (c.classType === "Mage") {
+              return { ...c, defenseActive: true, shieldAmount: 30 };
+            } else if (c.classType === "Assassin") {
+              return { ...c, defenseActive: true, stealthCharged: true }; // 은신 충전 완료!
+            }
+          }
+          return c;
+        }));
+
+        if (nextBossHp <= 0) {
+          handleBossDefeat();
+        } else {
+          progressTurn();
+        }
+      };
+
+      // 3. 보스 즉각 반격 (행동 완료 0.8초 딜레이 실행)
+      const progressTurn = () => {
+        const currentPatternIdx = (turnCounter - 1) % 3;
+        const currentPattern = activeBoss.patterns[currentPatternIdx];
+
+        setTimeout(() => {
+          // 이미 보스가 처치되었다면 반격을 막음
+          if (bossHp <= 0) return;
+
+          // 보스 패턴 연출용 타겟 리스트 필터링 (살아있는 영웅 대상)
+          const aliveHeroes = party.filter(h => h.hp > 0);
+          if (aliveHeroes.length === 0) return;
+
+          // 보스별 맞춤형 타겟 로직 전개 (전체 광역 vs 타겟 제한형)
+          let targetIds = [];
+          let isSingleTargetPattern = false;
+          let calculatedDmgOverride = null;
+
+          // 보스 기본 가해 대미지 스케일러 반영
+          const currentBossDmg = getBossDamage(currentBossIndex, loopCount);
+
+          if (activeBoss.id === "zakum") {
+            if (currentPatternIdx === 0) {
+              const luckyHero = aliveHeroes[Math.floor(Math.random() * aliveHeroes.length)];
+              targetIds = [luckyHero.id];
+              isSingleTargetPattern = true;
+              calculatedDmgOverride = Math.floor(40 * (1 + (loopCount - 1) * 0.30));
+            } else if (currentPatternIdx === 1) {
+              targetIds = aliveHeroes.map(h => h.id);
+              calculatedDmgOverride = Math.floor(15 * (1 + (loopCount - 1) * 0.30));
+            } else if (currentPatternIdx === 2) {
+              targetIds = aliveHeroes.map(h => h.id);
+              calculatedDmgOverride = Math.floor(40 * (1 + (loopCount - 1) * 0.30));
+            }
+          } else if (activeBoss.id === "horntail") {
+            if (currentPatternIdx === 0) {
+              const shuffled = [...aliveHeroes].sort(() => 0.5 - Math.random());
+              targetIds = shuffled.slice(0, 2).map(h => h.id);
+              isSingleTargetPattern = true;
+              calculatedDmgOverride = Math.floor(30 * (1 + (loopCount - 1) * 0.30));
+            } else if (currentPatternIdx === 1) {
+              targetIds = aliveHeroes.map(h => h.id);
+              calculatedDmgOverride = Math.floor(25 * (1 + (loopCount - 1) * 0.30));
+            } else if (currentPatternIdx === 2) {
+              targetIds = aliveHeroes.map(h => h.id);
+              calculatedDmgOverride = Math.floor(50 * (1 + (loopCount - 1) * 0.30));
+            }
+          } else if (activeBoss.id === "pinkbean") {
+            if (currentPatternIdx === 0) {
+              const luckyHero = aliveHeroes[Math.floor(Math.random() * aliveHeroes.length)];
+              targetIds = [luckyHero.id];
+              isSingleTargetPattern = true;
+              calculatedDmgOverride = Math.floor(45 * (1 + (loopCount - 1) * 0.30));
+            } else if (currentPatternIdx === 1) {
+              targetIds = aliveHeroes.map(h => h.id);
+              calculatedDmgOverride = Math.floor(25 * (1 + (loopCount - 1) * 0.30));
+            } else if (currentPatternIdx === 2) {
+              targetIds = aliveHeroes.map(h => h.id);
+              calculatedDmgOverride = Math.floor(35 * (1 + (loopCount - 1) * 0.30));
+            }
+          }
+
+          // 로그 문구 출력 및 시각 효과 피드백
+          if (isSingleTargetPattern) {
+            const namesText = party.filter(h => targetIds.includes(h.id)).map(h => h.name).join(", ");
+            addLog(`👿 [보스 타겟 공격] ${activeBoss.name}의 패턴 『${currentPattern.name}』이(가) [${namesText}]을(를) 정밀 포격했습니다!`);
+          } else {
+            addLog(`👿 [보스 광역 공격] ${activeBoss.name}의 패턴 『${currentPattern.name}』이(가) 가동되었습니다! (${currentPattern.effect})`);
+          }
+          setPartyHitFlash(true);
+
+          setParty(prev => {
+            const mageChar = prev.find(c => c.classType === "Mage");
+            const isMageShieldActive = mageChar && mageChar.defenseActive && mageChar.shieldAmount > 0;
+
+            const finalParty = prev.map(c => {
+              if (c.hp <= 0 || !targetIds.includes(c.id)) return c;
+
+              let finalIncurredDmg = calculatedDmgOverride !== null ? calculatedDmgOverride : currentBossDmg;
+
+              if (c.defenseActive) {
+                if (c.classType === "Assassin") {
+                  finalIncurredDmg = 0;
+                  addLog(`👤 [은신 무적] [암살자 ${c.name}]은(는) 그림자 틈새에 숨어 어떤 타격도 받지 않았습니다!`);
+                }
+              }
+
+              if (isMageShieldActive && finalIncurredDmg > 0) {
+                const absorbed = Math.min(30, finalIncurredDmg);
+                finalIncurredDmg -= absorbed;
+                addLog(`🔮 [마나 실드] 비전 실드가 [${c.name}]의 피해를 ${absorbed}만큼 안전하게 삼켜냈습니다.`);
+              }
+
+              let nextHp = c.hp - finalIncurredDmg;
+              if (nextHp <= 0) {
+                nextHp = 0;
+                addLog(`💀 [기절] [${c.name}]이(가) 보스의 맹렬한 공세에 고꾸라졌습니다.`);
+              } else if (finalIncurredDmg > 0) {
+                addLog(`💥 [타격] [${c.name}]이(가) ${finalIncurredDmg}의 데미지를 입었습니다. (HP: ${nextHp})`);
+              }
+
+              return { 
+                ...c, 
+                hp: nextHp, 
+                defenseActive: false, // 회피 판정은 종료
+                shieldAmount: 0
+              };
+            });
+
+            return finalParty;
+          });
+
+          setTurnCounter(prev => prev + 1);
+          setTimeout(() => setPartyHitFlash(false), 300);
+        }, 800);
+      };
+
+      // 4. 보스 패배 성공 연쇄 (다음 보스 전환 시 영웅 전원 부활 및 최대 수치 회복 적용)
+      const handleBossDefeat = () => {
+        addLog(`🎉 축하합니다! 보스 『${activeBoss.name}』 격퇴에 성공했습니다!`);
+        addLog(`🎁 보너스 보상 경험치 +${activeBoss.expReward} EXP를 일시 획득했습니다! 파티를 육성시키세요.`);
+        setGlobalExp(prev => prev + activeBoss.expReward);
+
+        if (currentBossIndex >= BOSS_DATA.length - 1) {
+          setVictory(true); // 그랜드 빅토리 오버레이 팝업 트리거
+          addLog("🏆 [GRAND CLEAR] 승리! 메이플 세계를 위협하던 모든 무시무시한 심연의 보스가 잠들었습니다!");
+        } else {
+          const nextIdx = currentBossIndex + 1;
+          setTimeout(() => {
+            setCurrentBossIndex(nextIdx);
+            setBossHp(getBossMaxHp(nextIdx, loopCount));
+            setTurnCounter(1); // 전투 준비 대기 상태(turnCounter === 1) 진입
+            
+            // 다음 보스 진입 전 쓰러진 모든 영웅 부활 및 풀체력 회복!
+            setParty(prev => prev.map(c => ({ 
+              ...c, 
+              hp: c.maxHp, 
+              defenseActive: false, 
+              stealthCharged: false,
+              shieldAmount: 0 
+            })));
+
+            addLog(`💖 [부활 및 회복] 새로운 전장을 맞이하여 쓰러졌던 영웅들이 전원 부활하고 최대 체력을 회복했습니다!`);
+            addLog(`🚨 [새로운 차원] Level ${nextIdx + 1} 보스 『${BOSS_DATA[nextIdx].name}』가 잠에서 깨어났습니다!`);
+          }, 1500);
+        }
+      };
+
+      // 5. 경험치 주입 레벨업 (체감 난이도 밸런싱: 필요 경험치 요구량 30 EXP -> 50 EXP 너프 적용)
+      const distributeExp = (charId) => {
+        if (globalExp < 50) {
+          alert("경험치가 부족합니다! 보스를 사냥하여 경험치를 50 이상 모으세요.");
+          return;
+        }
+
+        setGlobalExp(prev => prev - 50);
+        setParty(prev => prev.map(c => {
+          if (c.id === charId) {
+            const nextLvl = c.level + 1;
+            const updatedMaxHp = c.maxHp + 25; 
+            const updatedDmg = c.baseDmg + 5;  
+            addLog(`🌟 [성장] [${c.name}]이(가) 레벨 ${nextLvl} 달성! (최대 HP +25, 스킬 기본 위력 +5)`);
+            
+            // 전투 전(turnCounter === 1)에는 최대 체력과 현재 체력이 같이 오르며, 
+            // 전투 진행 중(turnCounter > 1)에는 현재 체력이 치료되지 않고 유지됩니다.
+            const nextHpValue = (turnCounter === 1) ? updatedMaxHp : c.hp;
+
+            return {
+              ...c,
+              level: nextLvl,
+              maxHp: updatedMaxHp,
+              hp: nextHpValue, 
+              baseDmg: updatedDmg
+            };
+          }
+          return c;
+        }));
+      };
+
+      // 6. 무한 차원 루프 다음 회차 시작 (New Game Plus 기능 구현)
+      const handleNextLoop = () => {
+        const nextLoop = loopCount + 1;
+        setLoopCount(nextLoop);
+        setCurrentBossIndex(0);
+        setBossHp(getBossMaxHp(0, nextLoop));
+        setTurnCounter(1);
+        setVictory(false);
+        setGameOver(false);
+        
+        // 다음 회차 진입 시 영웅 전원 체력 및 방어 장벽 깔끔하게 초기화
+        setParty(prev => prev.map(hero => ({
+          ...hero,
+          hp: hero.maxHp,
+          defenseActive: false,
+          stealthCharged: false,
+          shieldAmount: 0
+        })));
+        
+        addLog(`🌌 [차원 상승] 영웅들의 성장을 이어받아 『${nextLoop}회차 루프』가 발동했습니다! 보스들의 최대 체력(+50%)과 대미지(+30%)가 영구적으로 강화됩니다.`);
+      };
+
+      const handleRetryLevel = () => {
+        setBossHp(getBossMaxHp(currentBossIndex, loopCount));
+        setTurnCounter(1);
+        setGameOver(false);
+        setVictory(false);
+        setParty(prev => prev.map(hero => ({
+          ...hero,
+          hp: hero.maxHp,
+          defenseActive: false,
+          stealthCharged: false,
+          shieldAmount: 0
+        })));
+        addLog(`🔄 [보스 재도전] 보스 『${activeBoss.name}』에게 레벨과 성장 스탯을 간직한 채 다시 승부를 봅니다!`);
+      };
+
+      const handleFullRestart = () => {
+        setLoopCount(1); // 1회차 리셋
+        setCurrentBossIndex(0);
+        setBossHp(BOSS_DATA[0].maxHp);
+        setTurnCounter(1);
+        setGlobalExp(0);
+        setVictory(false);
+        setGameOver(false);
+        setParty(JSON.parse(JSON.stringify(INITIAL_PARTY)));
+        setLogs([
+          "🔄 시뮬레이터가 1레벨 기초 상태로 완전히 리셋되었습니다. 다시 레이드에 진입합니다!",
+          "⚔️ 자쿰 레이드가 재오픈되었습니다."
+        ]);
+      };
+
+      return (
+        <div class={`container mx-auto px-4 py-6 max-w-7xl transition-colors duration-300 ${partyHitFlash ? "bg-red-950/50" : ""}`}>
+          
+          {/* 상단 헤더 - 피드백 반영: 학번 및 성함 서식 완벽 출력 */}
+          <header class="mb-6 text-center border-b border-gray-800 pb-5">
+            <div class="inline-block bg-indigo-950 text-indigo-300 text-xs px-3 py-1 rounded mb-2 border border-indigo-700 font-sans">
+              2026학년도 1학기 자료구조 과제 2 - 20231803 성진우
+            </div>
+            
+            {/* 검 모양 픽셀아트 인라인 SVG 그래픽 적용 */}
+            <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-pink-500 to-indigo-400 mb-2 font-black flex items-center justify-center gap-2">
+              <svg viewBox="0 0 100 100" class="w-8 h-8 md:w-10 md:h-10 fill-amber-400 animate-pulse drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]" style={{ transform: "rotate(45deg)" }}>
+                {/* 픽셀 느낌의 성검(Sword) 패스 */}
+                <rect x="45" y="10" width="10" height="50" fill="#FBBF24" />
+                <rect x="48" y="8" width="4" height="52" fill="#FFF" />
+                <rect x="35" y="60" width="30" height="8" fill="#D97706" />
+                <rect x="46" y="68" width="8" height="16" fill="#92400E" />
+                <circle cx="50" cy="88" r="6" fill="#EF4444" />
+              </svg>
+              <span>OOP 원정대 : 메이플월드</span>
+            </h1>
+            <p class="text-gray-400 text-sm max-w-3xl mx-auto font-sans">
+              추상 클래스 `CharacterADT` 및 베이스 클래스 `GameCharacter`에 정의된 핵심 다형성 메서드인 
+              <span class="text-amber-400 font-bold"> attack()</span>과 <span class="text-teal-400 font-bold"> cast_skill()</span>의 실시간 바인딩 동작 방식을 완벽 시각화한 모던 레이드입니다.
+            </p>
+          </header>
+
+          {/* 메인 보드 그리드 */}
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* 좌측 패널: UML 시각화 */}
+            <div class="lg:col-span-5 bg-gray-900 border-2 border-gray-800 p-5 rounded-lg flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-4 pb-2 border-b border-gray-800">
+                  <h2 class="text-lg font-bold text-amber-400 flex items-center gap-2 font-sans">
+                    📂 [UML] OOP 상속 계층도 시각화
+                  </h2>
+                  <span class="text-xs text-gray-500 font-sans">클릭하면 명세 확인</span>
+                </div>
+
+                <p class="text-xs text-gray-400 mb-5 leading-relaxed font-sans">
+                  추상클래스부터 자식클래스까지의 상속 흐름을 완벽 구현했습니다. 특정 레이어를 클릭해 보세요!
+                </p>
+
+                {/* UML 트리 구조 그래프 */}
+                <div class="space-y-4">
+                  <div class="flex justify-center">
+                    <button 
+                      onClick={() => handleConceptSelect("CharacterADT")}
+                      class={`px-4 py-2 text-xs font-semibold rounded-md transition-all pixel-border-sm ${
+                        selectedConcept === "CharacterADT" 
+                          ? "bg-amber-500 text-black border-yellow-300 font-extrabold scale-105" 
+                          : "bg-gray-800 text-gray-300 hover:bg-gray-700 border-gray-600"
+                      }`}
+                    >
+                      🔮 Interface: CharacterADT (추상)
+                    </button>
+                  </div>
+
+                  <div class="flex justify-center -my-2">
+                    <div class="w-1 h-6 bg-gray-700"></div>
+                  </div>
+
+                  <div class="flex justify-center">
+                    <button 
+                      onClick={() => handleConceptSelect("GameCharacter")}
+                      class={`px-4 py-2 text-xs font-semibold rounded-md transition-all pixel-border-sm ${
+                        selectedConcept === "GameCharacter" 
+                          ? "bg-amber-500 text-black border-yellow-300 font-extrabold scale-105" 
+                          : "bg-gray-800 text-gray-300 hover:bg-gray-700 border-gray-600"
+                      }`}
+                    >
+                      🛡️ Base Class: GameCharacter (부모)
+                    </button>
+                  </div>
+
+                  <div class="flex justify-center -my-2">
+                    <div class="w-1 h-6 bg-gray-700"></div>
+                  </div>
+
+                  {/* 세분화 가지선 */}
+                  <div class="relative flex justify-between px-6">
+                    <div class="absolute left-1/2 right-0 top-0 h-0.5 bg-gray-700 -translate-x-1/2 w-4/5"></div>
+                    <div class="w-1 h-4 bg-gray-700 mx-auto"></div>
+                    <div class="w-1 h-4 bg-gray-700 mx-auto"></div>
+                    <div class="w-1 h-4 bg-gray-700 mx-auto"></div>
+                    <div class="w-1 h-4 bg-gray-700 mx-auto"></div>
+                  </div>
+
+                  <div class="grid grid-cols-4 gap-2">
+                    <button 
+                      onClick={() => handleConceptSelect("Warrior")}
+                      class={`py-2 px-1 text-[11px] font-bold rounded-md text-center transition-all pixel-border-sm ${
+                        selectedConcept === "Warrior"
+                          ? "bg-red-500 text-white font-black"
+                          : "bg-gray-800 text-red-400 hover:bg-gray-700"
+                      }`}
+                    >
+                      전사 (Warrior)
+                    </button>
+                    <button 
+                      onClick={() => handleConceptSelect("Mage")}
+                      class={`py-2 px-1 text-[11px] font-bold rounded-md text-center transition-all pixel-border-sm ${
+                        selectedConcept === "Mage"
+                          ? "bg-purple-500 text-white font-black"
+                          : "bg-gray-800 text-purple-400 hover:bg-gray-700"
+                      }`}
+                    >
+                      마법사 (Mage)
+                    </button>
+                    <button 
+                      onClick={() => handleConceptSelect("Archer")}
+                      class={`py-2 px-1 text-[11px] font-bold rounded-md text-center transition-all pixel-border-sm ${
+                        selectedConcept === "Archer"
+                          ? "bg-green-500 text-white font-black"
+                          : "bg-gray-800 text-green-400 hover:bg-gray-700"
+                      }`}
+                    >
+                      궁수 (Archer)
+                    </button>
+                    <button 
+                      onClick={() => handleConceptSelect("Assassin")}
+                      class={`py-2 px-1 text-[11px] font-bold rounded-md text-center transition-all pixel-border-sm ${
+                        selectedConcept === "Assassin"
+                          ? "bg-yellow-500 text-white font-black"
+                          : "bg-gray-800 text-yellow-400 hover:bg-gray-700"
+                      }`}
+                    >
+                      암살자 (Assassin)
+                    </button>
+                  </div>
+                </div>
+
+                {/* 코드 명세 리더 */}
+                <div class="mt-6 bg-gray-950 p-4 rounded-md border border-gray-800">
+                  <h3 class="text-sm font-bold text-teal-400 mb-1 font-sans">
+                    {activeConceptInfo.title}
+                  </h3>
+                  <p class="text-xs text-gray-300 leading-relaxed mb-3 font-sans">
+                    {activeConceptInfo.desc}
+                  </p>
+                  
+                  <div class="relative">
+                    <span class="absolute top-1 right-2 text-[10px] text-gray-500 uppercase font-mono">Python Source</span>
+                    <pre class="text-[10px] text-amber-100 font-mono overflow-x-auto bg-gray-900/90 p-3 rounded border border-gray-800 custom-scrollbar max-h-48 leading-normal whitespace-pre-wrap">
+                      {activeConceptInfo.code}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+
+              {/* 하단 전체 리셋 제어 패널 */}
+              <div class="mt-4 pt-3 border-t border-gray-800 flex flex-col gap-2 font-sans">
+                <span class="text-[11px] text-gray-400">💡 <b>전체 게임 리셋 패널 (스탯 보존/완전 초기화):</b></span>
+                <div class="flex gap-2">
+                  <button 
+                    onClick={handleRetryLevel}
+                    class="flex-1 bg-amber-600 hover:bg-amber-500 text-black font-extrabold text-xs py-2 rounded pixel-border-sm transition-colors"
+                  >
+                    🔄 이번 보스 재도전 (스탯보존)
+                  </button>
+                  <button 
+                    onClick={handleFullRestart}
+                    class="flex-1 bg-rose-950 hover:bg-rose-900 text-rose-300 font-extrabold text-xs py-2 rounded border border-rose-800 pixel-border-sm transition-colors"
+                  >
+                    🚫 완전 처음부터 초기화
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 우측 패널: 배틀 시뮬레이터 */}
+            <div class="lg:col-span-7 bg-gray-900 border-2 border-gray-800 p-5 rounded-lg flex flex-col justify-between relative">
+              
+              {/* 패배 대화창 */}
+              {gameOver && (
+                <div class="absolute inset-0 bg-black/95 z-20 flex flex-col items-center justify-center p-6 text-center rounded-lg animate-fade-in font-sans">
+                  <span class="text-5xl mb-3">💀</span>
+                  <h2 class="text-3xl font-extrabold text-red-500 mb-2">PARTY DEFEATED</h2>
+                  <p class="text-gray-300 text-sm max-w-md mb-6 leading-relaxed font-mono">
+                    모든 영웅이 쓰러졌습니다...<br/>
+                    하지만 전적과 현재 레벨은 영구히 유지됩니다. 바로 장비를 정비하고 복수전을 펼치세요!
+                  </p>
+                  <div class="flex gap-4">
+                    <button 
+                      onClick={handleRetryLevel}
+                      class="bg-amber-500 hover:bg-amber-400 text-black font-extrabold px-6 py-2 rounded-lg pixel-border transition-all transform hover:scale-105 font-sans"
+                    >
+                      ⚔️ 레벨 유지하고 보스 재도전
+                    </button>
+                    <button 
+                      onClick={handleFullRestart}
+                      class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-6 py-2 rounded-lg pixel-border-sm transition-all text-xs"
+                    >
+                      처음부터 다시하기
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 그랜드 빅토리 (GRAND VICTORY) 차원 스케일업 선택창 */}
+              {victory && (
+                <div class="absolute inset-0 bg-black/95 z-20 flex flex-col items-center justify-center p-6 text-center rounded-lg animate-fade-in font-sans border-4 border-yellow-500">
+                  <span class="text-6xl mb-4 animate-bounce">🏆</span>
+                  <h2 class="text-3xl md:text-4xl font-extrabold text-yellow-400 mb-2">GRAND VICTORY</h2>
+                  <p class="text-gray-200 text-xs md:text-sm max-w-md mb-6 leading-relaxed font-mono">
+                    축하합니다! 메이플 대륙을 파괴하려던 보스 『핑크빈』마저 완벽히 봉인하였습니다!<br/>
+                    <span class="text-yellow-300 font-bold font-sans">현재 {loopCount}회차 정벌 완료!</span><br/>
+                    현재 영웅들의 소중한 성장을 그대로 유지한 채, 더 강력해진 몬스터들과의 다음 차원 루프를 여시겠습니까?
+                  </p>
+                  <div class="flex flex-col sm:flex-row gap-3">
+                    <button 
+                      onClick={handleNextLoop}
+                      class="bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-lg pixel-border transition-all transform hover:scale-105 font-sans text-sm"
+                    >
+                      ⚔️ {loopCount + 1}회차 시작하기 (난이도 상승)
+                    </button>
+                    <button 
+                      onClick={handleFullRestart}
+                      class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-6 py-2.5 rounded-lg pixel-border-sm transition-all text-xs"
+                    >
+                      1회차부터 완전히 새로 시작
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 보스 아레나 스크린 */}
+              <div>
+                <div class="flex items-center justify-between pb-3 border-b border-gray-800 mb-4 font-sans">
+                  <div class="flex items-center gap-2">
+                    <span class="animate-pulse w-3 h-3 rounded-full bg-red-500"></span>
+                    <h2 class="font-bold text-gray-100 font-sans">
+                      <span class="text-amber-400 mr-1">[{loopCount}회차]</span> STAGED BOSS: Level {currentBossIndex + 1}
+                    </h2>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span class="text-xs text-gray-400 font-sans">
+                      턴 수: <span class="text-amber-400 font-bold font-mono">{turnCounter}턴째</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div class="bg-gray-950/80 rounded-lg p-5 border border-gray-800 flex flex-col md:flex-row items-center gap-6 relative overflow-hidden">
+                  
+                  {/* 무적 반사 연출 */}
+                  {activeBoss.id === "pinkbean" && (turnCounter % 3 === 0) && (
+                    <div class="absolute top-2 left-2 bg-rose-600 text-white text-[10px] font-bold px-2 py-1 rounded animate-bounce font-sans">
+                      🛡️ 무적/반사 실드 적용중!
+                    </div>
+                  )}
+
+                  {/* 보스 SVG 이미지 */}
+                  <div class={`w-32 h-32 flex items-center justify-center bg-gray-900/50 rounded border border-gray-800 relative bounce-animation ${bossShake ? "shake" : ""}`}>
+                    {activeBoss.svg}
+                  </div>
+
+                  {/* 보스 수치 정보 */}
+                  <div class="flex-1 w-full space-y-2 font-sans">
+                    <div class="flex justify-between items-baseline">
+                      <h3 class="text-xl font-bold text-red-500">{activeBoss.name}</h3>
+                      <span class="text-xs text-gray-400 font-mono">
+                        HP: <span class="text-red-400">{bossHp}</span> / {getBossMaxHp(currentBossIndex, loopCount)}
+                      </span>
+                    </div>
+
+                    <div class="w-full bg-gray-800 h-4 rounded-full overflow-hidden border border-gray-700 p-0.5">
+                      <div 
+                        class="bg-gradient-to-r from-red-600 to-amber-500 h-full rounded-full transition-all duration-300"
+                        style={{ width: `${(bossHp / getBossMaxHp(currentBossIndex, loopCount)) * 100}%` }}
+                      ></div>
+                    </div>
+
+                    <p class="text-xs text-gray-400 leading-relaxed bg-gray-900 p-2 rounded border border-gray-800/60 font-sans">
+                      {activeBoss.description}
+                    </p>
+
+                    <div class="bg-indigo-950/40 border border-indigo-900 p-2 rounded text-xs flex justify-between items-center text-[11px] font-mono">
+                      <span class="text-indigo-300 font-bold font-sans">⚠️ 다음 보스 공세 예고:</span>
+                      <span class="text-amber-300 font-semibold font-mono">
+                        {activeBoss.patterns[(turnCounter - 1) % 3].name} ({activeBoss.patterns[(turnCounter - 1) % 3].effect})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 실시간 로그 창 */}
+              <div class="my-4">
+                <div class="flex justify-between items-center mb-2 font-sans">
+                  <span class="text-xs font-bold text-gray-400">📜 실시간 배틀 로그 (다형성 실행 결과)</span>
+                  <div class="flex items-center gap-2">
+                    <span class="bg-amber-950 text-amber-400 text-[11px] px-2 py-0.5 rounded border border-amber-800 font-mono">
+                      공용 보너스 경험치: <span class="font-bold">{globalExp} EXP</span>
+                    </span>
+                  </div>
+                </div>
+                <div class="bg-gray-950 rounded border border-gray-800 h-36 overflow-y-auto p-3 font-mono text-xs text-gray-300 custom-scrollbar space-y-1.5">
+                  {logs.map((log, index) => (
+                    <div key={index} class="leading-relaxed border-b border-gray-900 pb-1 font-mono">
+                      {log}
+                    </div>
+                  ))}
+                  <div ref={logEndRef} />
+                </div>
+              </div>
+
+              {/* 플레이어 카드 영역 */}
+              <div>
+                <div class="flex justify-between items-center mb-2 font-sans">
+                  <span class="text-xs font-bold text-gray-400">🧙‍♂️ 파티 영웅 상태 및 스킬 발동 (각 액션 설명 완비)</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {party.map(hero => {
+                    const isDead = hero.hp <= 0;
+                    return (
+                      <div 
+                        key={hero.id} 
+                        class={`p-3 rounded-lg border-2 flex flex-col justify-between transition-all relative ${
+                          isDead ? "border-gray-800 bg-gray-950/70 opacity-40" : hero.color
+                        }`}
+                      >
+                        {hero.defenseActive && !isDead && (
+                          <span class="absolute top-1 right-2 bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded animate-pulse font-sans">
+                            {hero.classType === "Assassin" ? "👤 은신 작동중" : "🔮 실드 작동"}
+                          </span>
+                        )}
+                        {hero.classType === "Assassin" && hero.stealthCharged && !hero.defenseActive && !isDead && (
+                          <span class="absolute top-1 right-2 bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded animate-pulse font-sans">
+                            👤 급습 대기중
+                          </span>
+                        )}
+
+                        <div>
+                          <div class="flex items-center gap-2 mb-1.5 font-sans">
+                            <span class="text-xl">{hero.icon}</span>
+                            <div>
+                              <div class="flex items-baseline gap-1.5">
+                                <h4 class="font-black text-sm">{hero.name}</h4>
+                                <span class="text-[10px] text-gray-400 font-mono">Lv.{hero.level} {hero.classType}</span>
+                              </div>
+                              <span class="text-[10px] text-gray-400 block -mt-1 font-mono">
+                                {hero.classType === "Warrior" && `무기: ${hero.weapon}`}
+                                {hero.classType === "Mage" && `주문: ${hero.spell}`}
+                                {hero.classType === "Archer" && `명궁: ${hero.bow}`}
+                                {hero.classType === "Assassin" && `보유단검: ${hero.daggers}개`}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div class="space-y-1 my-1.5 font-sans">
+                            <div class="flex justify-between text-[10px] text-gray-300 font-mono">
+                              <span>HP: {hero.hp}/{hero.maxHp}</span>
+                              <span>공격력: {hero.baseDmg}</span>
+                            </div>
+                            <div class="w-full bg-gray-900 h-2 rounded-full overflow-hidden p-0.5">
+                              <div 
+                                class="bg-emerald-500 h-full rounded-full transition-all duration-300"
+                                style={{ width: `${(hero.hp / hero.maxHp) * 100}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 고유 공격 및 스킬 직관 설명 레이블 */}
+                        <div class="bg-black/40 p-1.5 rounded text-[10px] leading-tight text-gray-300 font-mono my-1 border border-gray-800/80 space-y-1 font-sans">
+                          <div>
+                            <span class="text-amber-400 font-bold">[공격]</span> {
+                              (hero.classType === "Assassin" && hero.stealthCharged) 
+                                ? <span class="text-red-400 font-bold">그림자 급습 발동 가능! (다음 타격 대미지 3배 폭증)</span>
+                                : hero.atkDesc
+                            }
+                          </div>
+                          <div>
+                            <span class="text-teal-400 font-bold">[스킬: {hero.skillName}]</span> {hero.skillDesc}
+                          </div>
+                        </div>
+
+                        {/* 공격 / 스킬 / EXP 제어 버튼 */}
+                        <div class="flex gap-2 mt-2 pt-1 border-t border-gray-800/40">
+                          <button
+                            disabled={isDead || victory || gameOver}
+                            onClick={() => handleAttack(hero.id)}
+                            title={hero.atkDesc}
+                            class={`flex-1 py-1 px-1.5 text-xs font-bold text-black rounded transition-colors pixel-border-sm ${
+                              isDead || gameOver ? "bg-gray-800 text-gray-500 cursor-not-allowed" : "bg-amber-400 hover:bg-amber-300"
+                            }`}
+                          >
+                            💥 공격
+                          </button>
+                          <button
+                            disabled={isDead || victory || gameOver}
+                            onClick={() => handleSkill(hero.id)}
+                            title={hero.skillDesc}
+                            class={`flex-1 py-1 px-1.5 text-xs font-bold text-white rounded transition-colors pixel-border-sm ${
+                              isDead || gameOver ? "bg-gray-800 text-gray-500 cursor-not-allowed" : "bg-sky-600 hover:bg-sky-500"
+                            }`}
+                          >
+                            🔮 스킬
+                          </button>
+                          <button
+                            disabled={globalExp < 50} // 30 -> 50 으로 수정하여 경험치 주입 요구량 증폭
+                            onClick={() => distributeExp(hero.id)}
+                            title="경험치 50을 주입하여 영구 스탯 성장" // 30 -> 50 툴팁 멘트 수정
+                            class={`py-1 px-2 text-[10px] font-bold rounded transition-colors pixel-border-sm ${
+                              globalExp >= 50 
+                                ? "bg-purple-600 text-white hover:bg-purple-500" 
+                                : "bg-gray-800 text-gray-500 cursor-not-allowed"
+                            }`}
+                          >
+                            + EXP
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* 푸터 가이드라인 */}
+          <footer class="mt-8 bg-gray-900 p-5 rounded-lg border-2 border-gray-800 text-xs text-gray-400 space-y-2 font-sans">
+            <h3 class="font-bold text-gray-200 font-sans">ℹ️ 과제 요구사항 및 게임 제어 도움말</h3>
+            <ul class="list-disc pl-5 space-y-1 font-sans">
+              <li><b>다형성 스킬 발동:</b> 캐릭터 카드 하단의 명세를 읽고 <b>공격</b> 또는 <b>스킬</b> 버튼을 상황에 맞게 교차로 입력해 보세요. 각 동작마다 파이썬의 오버라이딩에 해당하는 고유 스크립트가 실행됩니다.</li>
+              <li><b>경험치 성장 시스템:</b> 보스를 제압하여 EXP를 <b>50 이상</b> 모으면 영웅의 <b>+ EXP</b> 버튼을 눌러 스탯 수치를 동적으로 영구 상승시킬 수 있습니다.</li>
+            </ul>
+          </footer>
+        </div>
+      );
+    }
+
+    const rootElement = document.getElementById('root');
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(<App />);
+  </script>
+</body>
+</html>
