@@ -14,7 +14,7 @@
 
 2. 실시간 서비스 및 소스코드 정보
 
-실시간 웹 시뮬레이터 (Vercel 배포): boss-raid-simulator.vercel.app
+실시간 웹 시뮬레이터 (Vercel 배포): https://boss-raid-simulator.vercel.app
 
 GitHub 소스코드 저장소: https://github.com/Immaayaa/boss_raid_simulator
 
